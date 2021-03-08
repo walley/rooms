@@ -8,18 +8,23 @@ use Email::MIME::Header;
 use Net::SMTP;
 use DateTime::Format::Mail;
 use Data::Dumper;
+use Sys::Syslog;
+use Data::Uniqid qw ( suniqid uniqid luniqid );
 
+openlog('rooms', 'cons,pid', 'user');
 
 my $our_domain = "hzsol.cz";
 my $smtpd = "localhost";
 my $user = "nextcloud";
-
+my $request_id = uniqid;
 my $s = "";
 
 while (<>)
 {
  $s .= $_;
 }
+
+wsyslog('info', 'start');
 
 #&send_mail("x", "michal.grezl\@hzsol.cz", "localhost");
 
@@ -152,3 +157,10 @@ sub confirm_invitation()
 
 }
 
+################################################################################
+sub wsyslog
+################################################################################
+{
+  my ($a, $b) = @_;
+  syslog($a, $request_id. " " . $b);
+}
