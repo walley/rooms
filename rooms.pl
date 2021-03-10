@@ -1,7 +1,11 @@
 #!/usr/bin/perl
 
-use utf8;
-use open ":std", ":encoding(UTF-8)";
+#use utf8;
+no utf8;
+
+#use open ":std", ":encoding(utf8)";
+#binmode(STDOUT, ':encoding(utf8)');
+#binmode(STDOUT, ':raw');
 
 use Email::MIME;
 use Email::MIME::Header;
@@ -10,14 +14,18 @@ use DateTime::Format::Mail;
 use Data::Dumper;
 use Sys::Syslog;
 use Data::Uniqid qw ( suniqid uniqid luniqid );
+use LWP::Simple;
 
-openlog('rooms', 'cons,pid', 'user');
+openlog('rooms', 'cons,pid', 'local6');
 
 my $our_domain = "hzsol.cz";
 my $smtpd = "localhost";
 my $user = "nextcloud";
 my $request_id = uniqid;
 my $s = "";
+my $user = $ENV{'USER'}; 
+my $home = $ENV{'HOME'}; 
+
 
 while (<>)
 {
@@ -30,7 +38,7 @@ wsyslog('info', 'start');
 
 my $email_object = Email::MIME->new($s);
 
-my @parts = $email_object->parts; # These will be Email::MIME objects, too.
+my @parts = $email_object->parts;
 
 foreach $i (@parts){
   print $i->content_type;
@@ -47,25 +55,16 @@ foreach $i (@parts){
   print "\n";
 }
 
-$email_object->walk_parts(sub {
-    my ($part) = @_;
-    return if $part->subparts; # multipart
-
-    if ( $part->content_type =~ m[text/html]i ) {
-        my $body = $part->body;
-        $body =~ s/<link [^>]+>//; # simple filter example
-        $part->body_set( $body );
-    }
-});
-
-
 my $decoded = $email_object->body;
 my $non_decoded = $email_object->body_raw;
 my $content_type = $email_object->content_type;
 
 my $from_header = $email_object->header_str("From");
+wsyslog('info', "from:" . $from_header);
+wsyslog('info', "user:" . $user);
+wsyslog('info', "home:" . $home);
 
-print $from_header . "\n";
+closelog();
 
 ################################################################################
 sub send_mail()
@@ -147,13 +146,39 @@ sub confirm_invitation()
 ################################################################################
 {
   my ($s) = @_;
+  my @x;
+  my %data;
+  my $accept_link;
 
   @data = split /^/m, $s;
 
   foreach my $i (@data){
-    my @x = $i =~ m/\s*(.*?):\s(.*)/;
-    print Dumper \@x;
+    @x = $i =~ m/\s*(.*?):\s(.*).$/;
+    if ($x[0] ne "") {
+      $data{$x[0]} = $x[1];
+    }
   }
+
+  print Dumper \%data;
+
+  if ($data{Accept} ne "") {
+    $accept_link = $data{Accept};
+  } else {
+    $accept_link = $data{'Přijmout'};
+  }
+
+  print "Link: $accept_link .\n";
+  wsyslog('info', "visited: " . $accept_link);
+
+#  $contents = get($data{Accept});
+
+  sleep 60;
+  wsyslog('info', "sleeping");
+#  $cmd = "/usr/bin/wget -q -O /dev/null " . $data{Accept};
+  my @args = ("/usr/bin/wget", "-q", '-O/tmp/zzxzz'.$$, $accept_link);
+  system(@args) == 0 or do {
+    wsyslog('info',"system call ( @args ) failed: $?");
+  };
 
 }
 
